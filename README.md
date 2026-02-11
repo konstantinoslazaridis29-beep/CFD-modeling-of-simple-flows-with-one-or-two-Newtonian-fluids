@@ -1,0 +1,2 @@
+# CFD-modeling-of-simple-flows-with-one-or-two-Newtonian-fluids
+The present work analyzes the methods and procedures of numerical flow modeling through the solution of the Navier–Stokes equations for applications involving simple flows with one or two fluids. An introduction to the theoretical background is provided, followed by apresentation of the numerical methods that were and applied for the simulations
