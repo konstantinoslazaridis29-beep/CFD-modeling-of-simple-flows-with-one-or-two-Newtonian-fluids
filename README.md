@@ -6,3 +6,9 @@ The present work analyzes the methods and procedures of numerical flow modeling 
 The following figure shows a simulation of the flow around a cylinder of square cross-section that results in the formation of a Karman vortex street,
 
 <img src="https://github.com/konstantinoslazaridis29-beep/CFD-modeling-of-simple-flows-with-one-or-two-Newtonian-fluids/blob/main/videos/square_flow_shifted_Re%3D700.gif" width=800>
+
+The following figures show a simulation of the development of a Kelvin-Helmholtz instability between two fluids,
+
+<img src="https://github.com/konstantinoslazaridis29-beep/CFD-modeling-of-simple-flows-with-one-or-two-Newtonian-fluids/blob/main/videos/KHI_density2.gif" width=800>
+
+<img src="https://github.com/konstantinoslazaridis29-beep/CFD-modeling-of-simple-flows-with-one-or-two-Newtonian-fluids/blob/main/videos/KHI_density_zoomed%20in6.gif" width=800>
