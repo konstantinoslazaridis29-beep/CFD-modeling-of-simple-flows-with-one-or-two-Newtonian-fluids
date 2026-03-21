@@ -305,23 +305,6 @@ def advect_phi_tvd(phi_n, u, v, dt, dx, dy):
     return phi_next
 
 
-# Video parameters
-'''output_dir = "frames"
-output_dir_2 = "zoomed in"
-os.makedirs(output_dir, exist_ok=True)
-os.makedirs(output_dir_2, exist_ok=True)
-save_every = 50'''
-root_dir = "simulation_data_KHI"
-sub_dirs = ["density", "velocity_u", "velocity_v", "H_sm"]
-for sub in sub_dirs:
-    path = os.path.join(root_dir, sub)
-    if not os.path.exists(path):
-        os.makedirs(path)
-        print(f"Created: {path}")
-
-velocity_u, velocity_v, Density, Heaviside = [], [], [], []
-save_every = 50
-
 # Parameters
 L_x = 8.0  # Length of domain in x-direction
 L_y = 3.0 # Length of domain in y-direction
@@ -357,18 +340,12 @@ sigma = 0.001   #typical sigma (surface tension) number value for water toluene 
 Re = u_ref * L_ref / nu_ref
 We = rho_ref * u_ref**2 * L_ref / sigma
 Fr = u_ref / np.sqrt(L_ref * g_y)
-#chat gpt parameters
+#interface parameters
 epsilon = 1.0 * element_length_x      # for H_sm only
 eps_c   = 0.5 * element_length_x      # Olsson–Kreiss diffusion
 delta_tau    = 0.1 * element_length_x
 N_tau   = 2
-'''
-#my parameters
-d = 0.1
-epsilon = element_length_x**(1-d) / 2
-delta_tau = element_length_x**(1+d) / 2
-eps_c = 0.5 * element_length_x
-'''
+
 x = np.linspace(0.0, L_x, N_points_x)
 y = np.linspace(0.0, L_y, N_points_y)
 X, Y = np.meshgrid(x, y)
@@ -486,7 +463,7 @@ for _ in tqdm(range(N_iterations)):
     u_tent[:, -1] = u_tent[:, 1]    ; v_tent[:, -1] = v_tent[:, 1]
     u_tent[-1, :] = 0.0             ; v_tent[-1, :] = 0.0
 
-    '''υπολογιζω τις παραγωγους των ενδιαμεσων ταχυτητων '''
+    '''calculating tentative velocities' derivatives '''
     du_tent_dx = central_difference_x(u_tent, element_length_x)
     du_tent_dy = central_difference_y(u_tent, element_length_y)
     dv_tent_dx = central_difference_x(v_tent, element_length_x)
@@ -552,7 +529,7 @@ for _ in tqdm(range(N_iterations)):
         if np.max(np.abs(p_next - p_iter)) < 1e-7:
             break
 
-    '''υπολογιχω τις παραγωγους της πιεσης για την διορθωση των ταχυτητων'''
+    '''pressure derivatives calculation for velocity correction'''
     dp_next_dx = grad_p_x_mac(p_next, element_length_x)
     dp_next_dy = grad_p_y_mac(p_next, element_length_y)
 
@@ -582,8 +559,7 @@ for _ in tqdm(range(N_iterations)):
 
     # ---- After correction ----
     if _ % interval == 0:
-        # DIAGNOSTIC
-        '''du_next_dx = upwind2_x(u_next, u_next, element_length_x)
+        du_next_dx = upwind2_x(u_next, u_next, element_length_x)
         du_next_dy = central_difference_y(u_next, element_length_y)
         dv_next_dx = central_difference_x(v_next, element_length_x)
         dv_next_dy = upwind2_y(v_next, v_next, element_length_y)
@@ -592,33 +568,10 @@ for _ in tqdm(range(N_iterations)):
         div_next = divergence_mac(u_next, v_next, element_length_x, element_length_y)
         u_next_at_v = interp_u_to_v_face(u_next)
         v_next_at_u = interp_v_to_u_face(v_next)
-
-        rhs_interior = rhs[1:-1, 1:-1]
-        print(f"\nIteration {_}")
-        # Check different regions
-        print("=== DIVERGENCE DISTRIBUTION (steady state) ===")
-        print(f"Interior [10:-10, 10:-10]: max={np.max(np.abs(div_next[10:-10, 10:-10]))}")
-        print(f"Near inlet [:, 0:5]: max={np.max(np.abs(div_next[:, 0:5]))}")
-        print(f"Near outlet [:, -5:]: max={np.max(np.abs(div_next[:, -5:]))}")
-        print(f"Near top [0:5, :]: max={np.max(np.abs(div_next[0:5, :]))}")
-        print(f"Near bottom [-5:, :]: max={np.max(np.abs(div_next[-5:, :]))}")
-
-        print(f"Div_max tent velocities: {np.max(np.abs(div_tent))}")
-        print(f"Div_next (du+dv): [{np.min(div_next):.3f}, {np.max(div_next):.3f}]")
-        print(f"RHS_next min/max/mean: {np.min(rhs_interior):.2e}, {np.max(rhs_interior):.2e}, "
-              f"{np.mean(np.abs(rhs_interior)):.2e}")
-        print(f"RHS_next sum (should be ~0 / idk): {np.sum(rhs_interior):.3e}")
-        print(f"Mean div_next: {np.mean(div_next[1:-1, 1:-1])}")  # Should be ~1e-6 or smaller
-        print(f"Max abs div_next (interior): {np.max(np.abs(div_next[1:-1, 1:-1]))}")
-        # Check pressure Poisson residual
-        residual = laplace(p_next, element_length_x, element_length_y) - rhs
-        print(f"Poisson residual (raw): {np.max(np.abs(residual))}")
-        print(f"Velocity magnitude: u_next={np.max(np.abs(u_next)):.2f}, "
-              f"v_next={np.max(np.abs(v_next)):.2f}")'''
         '''RESIDUALS - START'''
         # Compute the residual of the Poisson equation: ∇²p = rhs
         # Residual = rhs - ∇²p (should be close to zero if well converged)
-        '''laplace_p = laplace(p_next, element_length_x, element_length_y)
+        laplace_p = laplace(p_next, element_length_x, element_length_y)
         pressure_res_raw = rhs - laplace_p
         # Calculate L2 and L1 norms only in the interior (fluid region)
         N = np.sum(interior_mask)
@@ -658,182 +611,11 @@ for _ in tqdm(range(N_iterations)):
         L1_cont = np.sum(np.abs(continuity_raw[interior_mask]) / N)
         u_residual1.append(L1_u)
         v_residual1.append(L1_v)
-        cont_residual1.append(L1_cont)'''
+        cont_residual1.append(L1_cont)
         '''RESIDUALS - END'''
-    '''video making'''
-    if _ % save_every == 0:
-        '''fig, ax = plt.subplots(2, 2, figsize=(12, 4))
-        ax = ax.flatten()
-
-        # Pressure
-        c1 = ax[0].contourf(Xc, Yc, p_next, levels=51, cmap='RdBu_r')
-        ax[0].contour(Xc, Yc, H_next, levels=[0.5], colors='black', linewidths=1)
-        plt.colorbar(c1, ax=ax[0])
-        ax[0].set_title(f'Pressure (t={t:.2f}s)')
-        ax[0].set_aspect('equal')
-
-        # Velocity
-        # 1. Bring u and v to cell centers
-        u_c = u_to_cell(u_next)
-        v_c = v_to_cell(v_next)
-
-        # 2. Now they have the same shape (ny, nx) and can be combined
-        vel_mag = np.sqrt(u_c ** 2 + v_c ** 2)
-        max_vel = np.max(vel_mag)
-        vel_levels = np.linspace(0, max_vel, 51)
-        c2 = ax[1].contourf(Xc, Yc, vel_mag, levels=vel_levels, cmap='viridis')
-        ax[1].contour(Xc, Yc, H_next, levels=[0.5], colors='black', linewidths=1)
-        ax[1].streamplot(X, Y, u_c, v_c, density=1, color="white", linewidth=0.5)
-        plt.colorbar(c2, ax=ax[1])
-        ax[1].set_title('Velocity Magnitude')
-        ax[1].set_aspect('equal')
-
-        # Density plot
-        c3 = ax[2].contourf(Xc, Yc, density, levels=51, cmap='RdBu')
-        ax[2].contour(Xc, Yc, H_next, levels=[0.5], colors='black', linewidths=1)
-        plt.colorbar(c3, ax=ax[2])
-        ax[2].set_title('Density')
-        ax[2].set_aspect('equal')
-
-        fig.delaxes(ax[3])
-        plt.tight_layout()
-        fig.savefig(f"{output_dir}/streamlines_{_:04d}.png", dpi=120, bbox_inches='tight')
-        plt.close(fig)
-
-        fig, ax = plt.subplots(2, 2, figsize=(12, 4))
-        ax = ax.flatten()
-        x1, x2 = 2.5, 5.5  # meters
-        y1, y2 = 1.0, 2.0
-        ax[0].set_xlim(x1, x2)
-        ax[0].set_ylim(y1, y2)
-
-        ax[1].set_xlim(x1, x2)
-        ax[1].set_ylim(y1, y2)
-
-        ax[2].set_xlim(x1, x2)
-        ax[2].set_ylim(y1, y2)
-
-        # Pressure
-        c1 = ax[0].contourf(Xc, Yc, p_next, levels=51, cmap='RdBu_r')
-        ax[0].contour(Xc, Yc, H_next, levels=[0.5], colors='black', linewidths=1)
-        plt.colorbar(c1, ax=ax[0])
-        ax[0].set_title(f'Pressure zoom-in (t={t:.2f}s)')
-        ax[0].set_aspect('equal')
-
-        # 2. Now they have the same shape (ny, nx) and can be combined
-        c2 = ax[1].contourf(Xc, Yc, vel_mag, levels=vel_levels, cmap='viridis')
-        ax[1].contour(Xc, Yc, H_next, levels=[0.5], colors='black', linewidths=1)
-        ax[1].streamplot(X, Y, u_c, v_c, density=1, color="white", linewidth=0.5)
-        plt.colorbar(c2, ax=ax[1])
-        ax[1].set_title('Velocity Magnitude zoom-in')
-        ax[1].set_aspect('equal')
-
-        #Density plot
-        c3 = ax[2].contourf(Xc, Yc, density, levels=51, cmap='RdBu')
-        ax[2].contour(Xc, Yc, H_next, levels=[0.5], colors='black', linewidths=1)
-        plt.colorbar(c3, ax=ax[2])
-        ax[2].set_title('Density zoom-in')
-        ax[2].set_aspect('equal')
-
-        fig.delaxes(ax[3])
-        plt.tight_layout()
-        fig.savefig(f"{output_dir_2}/streamlines_{_:04d}.png", dpi=300, bbox_inches='tight')
-        plt.close(fig)'''
-        velocity_u[:] = u_next
-        velocity_v[:] = v_next
-        Density[:] = density
-        Heaviside[:] = H_next
-        files = {f"density": Density, f"velocity_u": velocity_u,
-                 f"velocity_v": velocity_v, f"H_sm": Heaviside}
-        for name, matrix in files.items():
-            filename = f"{name}_{_:03d}.txt"
-            filepath = os.path.join(root_dir, name, filename)
-            # fmt='%.6e' uses scientific notation to preserve precision
-            # delimiter=' ' keeps it clean with spaces between columns
-            np.savetxt(filepath, matrix, fmt='%.6e', delimiter=' ')
-
-
-
+   
     # Advance in time
     u_prev[:] = u_next  # this way we don't create a new array each iteration, just copy the new values on the old array
     v_prev[:] = v_next
     p_prev[:] = p_next
     H_prev[:] = H_next
-
-
-# After loop -- video:
-print(f"Saved frames to {root_dir}")
-
-# Pressure & velocity field & vorticity plot
-plt.figure(1, figsize=(12, 4))
-plt.subplot(2, 2, 1)
-# Pressure plot
-p_max = np.max(p_prev)
-pressure_levels = np.linspace(-p_max, p_max, 51)
-contour = plt.contourf(X, Y, p_prev, levels=pressure_levels, cmap='RdYlBu_r')
-plt.colorbar(contour, label='Pressure')
-plt.contour(X, Y, H_prev, levels=[0.5], colors='black', linewidths=1)
-# plt.quiver(X[::step_y, ::step_x], Y[::step_y, ::step_x], u_next[::step_y, ::step_x], v_next[::step_y, ::step_x],
-#               scale=100, alpha=0.7, color="black")
-plt.title("Pressure Field")
-plt.xlabel("x")
-plt.ylabel("y")
-# Add cylinder in the plot
-plt.axis('equal')
-
-# Velocity magnitude plot
-plt.subplot(2, 2, 2)
-# Before plotting results
-u_plot = u_to_cell(u_prev)
-v_plot = v_to_cell(v_prev)
-vel_magnitude = np.sqrt(u_plot ** 2 + v_plot ** 2)
-max_vel = np.max(vel_magnitude)  # Add this line!
-vel_levels = np.linspace(0, max_vel, 51)  # Fix this!
-# For streamplots, X and Y must match the shapes of u_plot and v_plot
-plt.xlim(0, L_x)
-plt.ylim(0, L_y)
-contour2 = plt.contourf(X, Y, vel_magnitude, levels=vel_levels, cmap='viridis')
-plt.colorbar(contour2, label='Velocity Magnitude')
-plt.contour(X, Y, H_prev, levels=[0.5], colors='black', linewidths=1)
-plt.streamplot(X, Y, u_plot, v_plot, density=1, color="white", linewidth=0.5)
-plt.title("Velocity Magnitude with Streamlines")
-plt.xlabel("x")
-plt.ylabel("y")
-plt.axis('equal')
-
-#Density plot
-plt.subplot(2, 2, 3)
-contour3 = plt.contourf(Xc, Yc, density, levels=51, cmap='RdBu')
-plt.contour(Xc, Yc, H_next, levels=[0.5], colors='black', linewidths=1)
-plt.colorbar(contour3, label='Density')
-plt.title('Density')
-plt.axis('equal')
-
-plt.subplot(2, 2, 4)
-# Adding legend
-plt.plot([], [], '', label=f"U_hor = {hor_vel}")
-plt.plot([], [], '', label=f"μ = {mu_ref}")      #need to correct this one
-plt.plot([], [], '', label=f"Rey = {Re:.2f}")
-plt.plot([],[], '', label=f"Web = {We:.2f}")
-plt.legend(loc='center', frameon=True, handlelength=0)
-plt.axis('equal')
-plt.show()
-
-# Velocity and continuity residuals plot
-plt.figure(figsize=(10, 5))
-iterations = np.arange(len(u_residual))
-plt.semilogy(iterations * interval, u_residual, label='u - residual L2')
-plt.semilogy(iterations * interval, v_residual, label='v - residual L2')
-plt.semilogy(iterations * interval, cont_residual, label='Continuity residual L2')
-plt.semilogy(iterations * interval, pressure_residual, label='Pressure residual L2')
-plt.semilogy(iterations * interval, phi_residual, label='Φ (H) residual L2')
-plt.semilogy(iterations * interval, u_residual1, label='u - residual L1')
-plt.semilogy(iterations * interval, v_residual1, label='v - residual L1')
-plt.semilogy(iterations * interval, cont_residual1, label='Continuity residual L1')
-plt.semilogy(iterations * interval, pressure_residual1, label='Pressure residual L1')
-plt.title('Residuals')
-plt.xlabel('Iterations')
-plt.ylabel('Velocity residuals (L2 & L1 norms)')
-plt.legend()
-plt.grid(True)
-plt.show()
