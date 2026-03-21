@@ -57,22 +57,6 @@ def laplace(f, dx, dy):
     )
     return diff
 
-
-# Video parameters
-#output_dir = "frames"
-#os.makedirs(output_dir, exist_ok=True)
-root_dir = "simulation_data_cylinder"
-sub_dirs = ["pressure", "velocity_u", "velocity_v"]
-for sub in sub_dirs:
-    path = os.path.join(root_dir, sub)
-    if not os.path.exists(path):
-        os.makedirs(path)
-        print(f"Created: {path}")
-
-velocity_u, velocity_v, pressure = [], [], []
-save_every = 50
-
-
 # Parameters
 L_x = 4.0  # Length of domain in x-direction
 L_y = 2.5 # Length of domain in y-direction
@@ -107,7 +91,7 @@ y = np.linspace(0.0, L_y, N_points_y)
 
 X, Y = np.meshgrid(x, y)
 
-'''Θέτω τις αρχικες συνθηκες ολες μηδεν σε καθε κουτακι του μεσαρισματος εκτος απο την οριζοντια ταχυτητα'''
+'''Setting every initial condition for every cell to zero, except for the horizontal velocity'''
 u_prev = np.zeros_like(X) * hor_vel
 '''faster convergence to steady state, pressure solver more efficient when velocity field is closer to divergence-free
     physical realism, numerical stability, computational cost'''
@@ -182,7 +166,7 @@ for _ in tqdm(range(N_iterations)):
     U_in = inlet_velocity(t)
 
     # Setting the variable names
-    '''θετω παραγωγους ταχυτητας στον χ και ψ αξονα που θα χρειαστω στις εξισωσεις αργοτερα'''
+    '''x and y derivatives needed for later'''
     du_prev_dx = upwind2_x(u_prev, u_prev, element_length_x)
     du_prev_dy = upwind2_y(u_prev, v_prev, element_length_y)
     dv_prev_dx = upwind2_x(v_prev, u_prev, element_length_x)
@@ -238,7 +222,7 @@ for _ in tqdm(range(N_iterations)):
     u_tent[cylinder_mask] = 0.0  # Dirichlet BCs - correct
     v_tent[cylinder_mask] = 0.0
 
-    '''υπολογιζω τις παραγωγους των ενδιαμεσων ταχυτητων '''
+    '''derivatives of tentative velocities '''
     du_tent_dx = central_difference_x(u_tent, element_length_x)
     du_tent_dy = central_difference_y(u_tent, element_length_y)
     dv_tent_dx = central_difference_x(v_tent, element_length_x)
@@ -247,14 +231,14 @@ for _ in tqdm(range(N_iterations)):
     div_temp = divergence(u_temp, v_temp, element_length_x, element_length_y)
 
     '''Pressure correction by solving the pressure poisson eq - "Correction step" '''
-    # υπολογιζω το δεξι μερος της εξ. Poisson με τις ενδιαμεσες παραγωγους της ταχυτητας
+    # calculating the rhs of pressure Poisson with the tentatvie velocities
     rhs = density * (1 / dt) * div_tent     #this is the correct way and is the same as Barba's
 
     p_next[:] = p_prev
     denominator = 2 * (element_length_y ** 2 + element_length_x ** 2)
     for iter in range(N_pressure_iter):
         p_iter[:] = p_next
-        '''Poisson για διαφορετικη αναλυση στους αξονες'''
+        '''Poisson for different resolution in x and y axis'''
         p_next[1:-1, 1:-1] = ((p_iter[1:-1, 0:-2] + p_iter[1:-1, 2:]) * element_length_y**2 +
                               (p_iter[0:-2, 1:-1] + p_iter[2:, 1:-1]) * element_length_x ** 2 -
                               rhs[1:-1, 1:-1] * element_length_x**2 * element_length_y**2) / denominator
@@ -273,7 +257,7 @@ for _ in tqdm(range(N_iterations)):
             break
 
 
-    '''υπολογιχω τις παραγωγους της πιεσης για την διορθωση των ταχυτητων'''
+    '''pressure derivatives for velocity correction'''
     dp_next_dx = central_difference_x(p_next, element_length_x)
     dp_next_dy = central_difference_y(p_next, element_length_y)
 
@@ -345,198 +329,8 @@ for _ in tqdm(range(N_iterations)):
         v_residual1.append(L1_v)
         cont_residual1.append(L1_cont)
         '''RESIDUALS - END'''
-    '''video making'''
-    if _ % save_every == 0:
-        '''# plot for video making - fresh plot each iteration
-        fig, axes = plt.subplots(2, 2, figsize=(10, 5))#, constrained_layout=True)
-        axes = axes.flatten()
-
-        # Calculate vorticity: ω = ∂v/∂x - ∂u/∂y
-        du_dy = central_difference_y(u_next, element_length_y)
-        dv_dx = central_difference_x(v_next, element_length_x)
-        vorticity = dv_dx - du_dy
-        vel_magnitude = np.sqrt(u_next ** 2 + v_next ** 2)
-        max_vel = np.max(np.abs(vel_magnitude))
-        if max_vel < 1e-6:
-            max_vel = 1e-6
-        pressure_levels = np.linspace(-p_max, p_max, 51)
-        # Get max vorticity for symmetric colormap
-        vort_max = np.max(np.abs(vorticity))
-        if vort_max < 1e-6:
-            vort_max = 1e-6
-
-        # Panel 1: Pressure
-        #axes[0].set_xlim(0, 2.5)
-        #axes[0].set_ylim(0.5, 2)
-        contour1 = axes[0].contourf(X, Y, p_next, levels=pressure_levels, cmap='RdYlBu_r')
-        fig.colorbar(contour1, ax=axes[0], label='Pressure')
-        axes[0].fill(x_cyl, y_cyl, color='black', alpha=0.9)
-        axes[0].set_title(f'Pressure (iter {_})')
-        axes[0].set_xlabel('x')
-        axes[0].set_ylabel('y')
-        axes[0].set_aspect('equal')
-
-        # Panel 2: Velocity
-        vel_levels = np.linspace(0, max_vel, 51)
-        #axes[1].set_xlim(0, 2.5)
-        #axes[1].set_ylim(0.5, 2)
-        axes[1].set_xlim(0, L_x)
-        axes[1].set_ylim(0, L_y)
-        axes[1].contourf(X, Y, vel_magnitude, levels=vel_levels, cmap='viridis')
-        axes[1].streamplot(X, Y, u_next, v_next, density=2, color='white', linewidth=0.5)
-        axes[1].fill(x_cyl, y_cyl, color='red', alpha=0.8)
-        axes[1].set_title(f'Velocity (iter {_})')
-        axes[1].set_xlabel('x')
-        axes[1].set_ylabel('y')
-        axes[1].set_aspect('equal')
-
-        # Panel 3: Vorticity
-        # Use symmetric colormap centered at zero
-        vort_levels = np.linspace(-vort_max, vort_max, 51)
-        #axes[2].set_xlim(0, 2.5)
-        #axes[2].set_ylim(0.5, 2)
-        axes[2].contourf(X, Y, vorticity, levels=vort_levels, cmap='RdBu_r', extend='both')
-        axes[2].fill(x_cyl, y_cyl, color='black', alpha=0.9)
-        axes[2].set_title(f'Vorticity (max ω={vort_max:.1f} 1/s)')
-        axes[2].set_xlabel('x')
-        axes[2].set_ylabel('y')
-        axes[2].set_aspect('equal')
-
-        #Panel 4: Divergence
-        div_field = divergence(u_next, v_next, element_length_x, element_length_y)
-        #div_max = np.max(np.abs(div_field))
-        div_max = 25
-        div_levels = np.linspace(-div_max, div_max, 51)
-        #axes[3].set_xlim(0, 2.5)
-        #axes[3].set_ylim(0.5, 2)
-        contour4 = axes[3].contourf(X, Y, div_field, levels=div_levels, cmap='RdBu_r')
-        fig.colorbar(contour4,ax=axes[3], label="Divergence")
-        axes[3].fill(x_cyl, y_cyl, color='black', alpha=0.9)
-        axes[3].set_title(f'Divergence')
-        axes[3].set_xlabel('x')
-        axes[3].set_ylabel('y')
-        axes[3].set_aspect('equal')
-
-        plt.tight_layout()
-        fig.savefig(f"{output_dir}/streamlines_{_:04d}.png", dpi=120, bbox_inches='tight')
-        plt.close(fig)'''
-        velocity_u[:] = u_next
-        velocity_v[:] = v_next
-        pressure[:] = p_next
-        files = {f"pressure": pressure, f"velocity_u": velocity_u, f"velocity_v": velocity_v}
-        for name, matrix in files.items():
-            filename = f"{name}_{_:03d}.txt"
-            filepath = os.path.join(root_dir, name, filename)
-            # fmt='%.6e' uses scientific notation to preserve precision
-            # delimiter=' ' keeps it clean with spaces between columns
-            np.savetxt(filepath, matrix, fmt='%.6e', delimiter=' ')
-
-        print(f"Iter {_} successfully saved.")
 
     # Advance in time
     u_prev[:] = u_next  # this way we don't create a new array each iteration, just copy the new values on the old array
     v_prev[:] = v_next
     p_prev[:] = p_next
-
-
-
-# After loop -- video:
-#print(f"Saved frames to {output_dir}")
-
-'''Reynolds and Courant'''
-rey = hor_vel * 2 * R / viscosity
-# sigma_max = 0.5 #Max value of Courant number
-sigma = hor_vel * dt / element_length_x  # Sigma must be < sigma_max
-
-step_x = N_points_x // 20
-step_y = N_points_y // 20
-
-# Pressure & velocity field & vorticity plot
-plt.figure(1, figsize=(10, 5))
-plt.subplot(2, 2, 1)
-# Pressure plot
-pressure_levels = np.linspace(-p_max, p_max, 51)
-contour = plt.contourf(X, Y, p_prev, levels=pressure_levels, cmap='RdYlBu_r')
-plt.colorbar(contour, label='Pressure')
-# plt.quiver(X[::step_y, ::step_x], Y[::step_y, ::step_x], u_next[::step_y, ::step_x], v_next[::step_y, ::step_x],
-#               scale=100, alpha=0.7, color="black")
-plt.title("Pressure Field")
-plt.xlabel("x")
-plt.ylabel("y")
-# Add cylinder in the plot
-plt.fill(x_cyl, y_cyl, color='black', alpha=0.8)
-plt.axis('equal')
-
-# Velocity magnitude plot
-plt.subplot(2, 2, 2)
-vel_magnitude = np.sqrt(u_prev ** 2 + v_prev ** 2)
-# Get velocity magnitude max for symmetric colormap
-max_vel = np.max(np.abs(vel_magnitude))
-vel_levels = np.linspace(0, max_vel, 51)
-plt.xlim(0, L_x)
-plt.ylim(0, L_y)
-contour2 = plt.contourf(X, Y, vel_magnitude, levels=vel_levels, cmap='viridis')
-plt.colorbar(contour2, label='Velocity Magnitude')
-plt.streamplot(X, Y, u_prev, v_prev, density=2, color="white", linewidth=0.5)
-plt.title("Velocity Magnitude with Streamlines")
-plt.xlabel("x")
-plt.ylabel("y")
-plt.fill(x_cyl, y_cyl, color='red', alpha=0.8)
-plt.axis('equal')
-plt.subplot(2, 2, 3)
-# Vorticity plot
-# Calculate vorticity: ω = ∂v/∂x - ∂u/∂y
-du_dy = central_difference_y(u_prev, element_length_y)
-dv_dx = central_difference_x(v_prev, element_length_x)
-vorticity = dv_dx - du_dy
-# Get max vorticity for symmetric colormap
-vort_max = np.max(np.abs(vorticity))
-vort_levels = np.linspace(-vort_max, vort_max, 51)
-contour3 = plt.contourf(X, Y, vorticity, levels=vort_levels, cmap='RdBu_r')
-plt.colorbar(contour3, label="Vorticity")
-plt.fill(x_cyl, y_cyl, color='black', alpha=0.9)
-plt.title(f'Vorticity (max ω={vort_max:.1f} 1/s)')
-plt.xlabel("x")
-plt.ylabel("y")
-plt.axis('equal')
-
-plt.subplot(2, 2, 4)
-# Divergence plot
-# Get max vorticity for symmetric colormap
-div_next = divergence(u_prev, v_prev, element_length_x, element_length_y)
-#div_max = np.max(np.abs(div_field))
-div_max = 25
-div_levels = np.linspace(-div_max, div_max, 51)
-contour4 = plt.contourf(X, Y, div_next, levels=div_levels, cmap='RdBu_r')
-plt.colorbar(contour4, label="Divergence")
-plt.fill(x_cyl, y_cyl, color='black', alpha=0.9)
-plt.title(f'Divergence')
-plt.xlabel("x")
-plt.ylabel("y")
-# Adding legend
-plt.plot([], [], '', label=f"U_hor = {hor_vel}")
-plt.plot([], [], '', label=f"v = {viscosity}")
-plt.plot([], [], '', label=f"Cylinder radius = {R}")
-plt.plot([], [], '', label=f"Rey = {rey:.2f}")
-plt.plot([], [], '', label=f"Courant = {sigma:.3f}")
-plt.legend(loc='upper right', frameon=True, handlelength=0)
-plt.axis('equal')
-plt.show()
-
-# Velocity and continuity residuals plot
-plt.figure(figsize=(10, 5))
-iterations = np.arange(len(u_residual))
-plt.semilogy(iterations * interval, u_residual, label='u - residual L2')
-plt.semilogy(iterations * interval, v_residual, label='v - residual L2')
-plt.semilogy(iterations * interval, cont_residual, label='Continuity residual L2')
-plt.semilogy(iterations * interval, pressure_residual, label='Pressure residual L2')
-plt.semilogy(iterations * interval, u_residual1, label='u - residual L1')
-plt.semilogy(iterations * interval, v_residual1, label='v - residual L1')
-plt.semilogy(iterations * interval, cont_residual1, label='Continuity residual L1')
-plt.semilogy(iterations * interval, pressure_residual1, label='Pressure residual L1')
-plt.title('Residuals')
-plt.xlabel('Iterations')
-plt.ylabel('Velocity residuals (L2 & L1 norms)')
-plt.legend()
-plt.grid(True)
-plt.show()
